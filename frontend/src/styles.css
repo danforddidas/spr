@@ -456,3 +456,29 @@ input:focus, select:focus, textarea:focus { border-color: var(--blue); box-shado
   .auth-right { padding: 16px; }
   .auth-card { padding: 20px; }
 }
+html, body { overflow-x: hidden; -webkit-text-size-adjust: 100%; }
+.cards-grid { grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); }
+.pc-head h4, .project-card h4, .card h3 { overflow-wrap: anywhere; }
+@media (max-width: 900px) {
+  .grid3 { grid-template-columns: 1fr 1fr; }
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .filters { grid-template-columns: 1fr 1fr; }
+  .filters input { grid-column: 1 / -1; }
+}
+@media (max-width: 640px) {
+  .grid3, .filters, .row, .opts { grid-template-columns: minmax(0, 1fr); }
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .cards-grid { grid-template-columns: minmax(0, 1fr); }
+  .sup-card, .sup-list li { flex-wrap: wrap; }
+  .seg { max-width: 100%; overflow-x: auto; }
+  .seg-btn { padding: 8px 12px; white-space: nowrap; }
+  .set-foot { flex-wrap: wrap; gap: 8px; }
+  .nav-item { padding: 13px 12px; font-size: 15px; }
+  .auth-left .slider { aspect-ratio: 16 / 9; }
+  .auth-card h1 { font-size: 22px; }
+  .page, .main { overflow-x: clip; }
+}
+@media (max-width: 380px) {
+  .stats { grid-template-columns: minmax(0, 1fr); }
+  .topbar-title { display: none; }
+}
