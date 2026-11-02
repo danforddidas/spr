@@ -1,0 +1,20 @@
+
+from django.conf import settings
+from django.conf.urls.static import static
+from django.contrib import admin
+from django.http import FileResponse, Http404
+from django.urls import include, path
+
+
+def index(request):
+    file = settings.FRONTEND_DIST / "index.html"
+    if not file.exists():
+        raise Http404("Frontend not built.")
+    return FileResponse(open(file, "rb"), content_type="text/html")
+
+
+urlpatterns = [
+    path("admin/", admin.site.urls),
+    path("api/", include("config.urls")),
+    path("", index),
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
