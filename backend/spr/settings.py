@@ -146,10 +146,12 @@ MEDIA_ROOT = BASE_DIR / "media"
 import os
 
 DEBUG = os.environ.get("DJANGO_DEBUG") == "1"
-ALLOWED_HOSTS = ["JINA.pythonanywhere.com", "127.0.0.1", "localhost"]
 
-STATIC_URL = "/static/"
+ALLOWED_HOSTS = ["mddani.pythonanywhere.com", "127.0.0.1", "localhost"]
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STATIC_URL = "/static/"
+
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
