@@ -14,6 +14,7 @@ import os
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+FRONTEND_DIST = BASE_DIR.parent / "frontend" / "dist"
 
 load_dotenv(BASE_DIR / ".env")
 
