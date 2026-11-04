@@ -146,7 +146,7 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 import os
 
-DEBUG = os.environ.get("DJANGO_DEBUG") == "1"
+DEBUG = True
 
 ALLOWED_HOSTS = ["mddani.pythonanywhere.com", "127.0.0.1", "localhost"]
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

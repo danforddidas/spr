@@ -243,7 +243,7 @@ function RegisterForm({ goLogin }) {
         <input
           value={f.reg_number}
           onChange={(e) => set({ reg_number: e.target.value })}
-          placeholder="12345/T.2023"
+          placeholder="36854/T.2023"
           required
         />
       </label>
