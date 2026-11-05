@@ -152,6 +152,7 @@ export default function Submit() {
 
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [stage, setStage] = useState("");
   const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
@@ -304,6 +305,7 @@ export default function Submit() {
 
     setLoading(true);
     setProgress(0);
+    setStage("compress");
 
     try {
       const headers = { Authorization: `Token ${token()}` };
@@ -311,6 +313,8 @@ export default function Submit() {
 
       const smallCover = cover ? await compressImage(cover) : null;
       const hasFiles = smallCover || documentFile || attachments.length > 0;
+
+      setStage("upload");
 
       if (hasFiles) {
         body = new FormData();
@@ -336,7 +340,10 @@ export default function Submit() {
         `${API}/projects/`,
         headers,
         body,
-        setProgress
+        (p) => {
+          setProgress(p);
+          if (p >= 100) setStage("save");
+        }
       );
 
       if (!ok) throw new Error(getError(data, status));
@@ -347,6 +354,7 @@ export default function Submit() {
       fail(err.message || "Submission failed. Please try again.");
     } finally {
       setLoading(false);
+      setStage("");
     }
   };
 
@@ -638,11 +646,41 @@ export default function Submit() {
 
         {error && <div className="hint">{error}</div>}
 
+        {loading && (
+          <div className="progress-box" role="status" aria-live="polite">
+            <div className="progress-top">
+              <span>
+                {stage === "compress" && "Compressing image..."}
+                {stage === "upload" && "Uploading files..."}
+                {stage === "save" && "Saving project..."}
+              </span>
+              <b>{stage === "save" ? "100%" : `${progress}%`}</b>
+            </div>
+            <div className="progress-track">
+              <div
+                className={
+                  stage === "save" || stage === "compress"
+                    ? "progress-fill pulse"
+                    : "progress-fill"
+                }
+                style={{
+                  width:
+                    stage === "compress"
+                      ? "100%"
+                      : `${stage === "save" ? 100 : progress}%`,
+                }}
+              />
+            </div>
+          </div>
+        )}
+
         <button className="btn" type="submit" disabled={loading}>
           {loading
-            ? progress > 0 && progress < 100
+            ? stage === "upload"
               ? `Uploading... ${progress}%`
-              : "Saving..."
+              : stage === "save"
+              ? "Saving..."
+              : "Please wait..."
             : "Submit project"}
         </button>
       </form>

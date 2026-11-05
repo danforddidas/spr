@@ -592,3 +592,36 @@ img, video { max-width: 100%; height: auto; }
     margin: 0;
   }
 }
+
+.progress-box {
+  margin: 4px 0 8px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(128, 128, 128, 0.12);
+}
+.progress-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+.progress-track {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(128, 128, 128, 0.25);
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #d06f26, #e8893f);
+  transition: width 0.2s ease;
+}
+.progress-fill.pulse {
+  animation: progress-pulse 1s ease-in-out infinite;
+}
+@keyframes progress-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
