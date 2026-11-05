@@ -561,20 +561,34 @@ img, video { max-width: 100%; height: auto; }
   input, select, textarea { font-size: 16px; } /* simu isivuze (zoom) ukibonyeza */
 }
 
-/* Hakikisha ukurasa unasogea chini na kitufe cha Save kinaonekana kwenye simu */
-.page { padding-bottom: 96px; overflow-x: hidden; overflow-y: visible; }
+/* Footer ya Settings: kitufe cha Save kionekane kila wakati kwenye simu */
+.settings-page { padding-bottom: 110px; }
 
 @media (max-width: 900px) {
-  html, body, #root { height: auto; min-height: 100%; overflow-y: auto; }
-  .page form .btn,
-  .page form button[type="submit"],
-  .page .btn.wide {
-    position: sticky;
-    bottom: 12px;
-    width: 100%;
-    min-height: 48px;
-    z-index: 5;
+  .set-foot {
+    position: fixed !important;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 900;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 12px 16px;
+    background: var(--surface, var(--card, #0f2036));
+    border-top: 1px solid rgba(128, 128, 128, 0.3);
+    box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.25);
   }
-  .page .row { grid-template-columns: 1fr !important; }
-  .page input, .page select, .page textarea { width: 100%; box-sizing: border-box; }
+  .set-foot .btn-save,
+  .set-foot .btn-ghost {
+    min-height: 44px;
+    padding: 0 20px;
+  }
+  .set-foot .auth-err,
+  .set-foot .saved-msg {
+    flex: 1 1 100%;
+    margin: 0;
+  }
 }

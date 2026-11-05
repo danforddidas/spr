@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useSettings } from "../settings.jsx";
 import { useAuth } from "../auth.jsx";
 
+const API = "/api";
+
 const SECTIONS = [
   { id: "profile", icon: "☺" },
   { id: "security", icon: "⛉" },
@@ -10,9 +12,31 @@ const SECTIONS = [
   { id: "notifications", icon: "✉" },
 ];
 
+function authHeaders() {
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Token ${localStorage.getItem("spr-token")}`,
+  };
+}
+
+function errorText(data) {
+  if (data?.detail) return data.detail;
+  if (data && typeof data === "object") {
+    const first = Object.values(data)[0];
+    if (Array.isArray(first)) return first[0];
+    if (typeof first === "string") return first;
+  }
+  return "Something went wrong. Please try again.";
+}
+
 function Option({ icon, title, sub, note, selected, onClick, badge }) {
   return (
-    <button type="button" className={selected ? "opt on" : "opt"} onClick={onClick} aria-pressed={selected}>
+    <button
+      type="button"
+      className={selected ? "opt on" : "opt"}
+      onClick={onClick}
+      aria-pressed={selected}
+    >
       <span className={badge ? "opt-icon badge-txt" : "opt-icon"}>{icon}</span>
       <strong>{title}</strong>
       <small>{sub}</small>
@@ -28,7 +52,12 @@ function Toggle({ label, sub, checked, onChange }) {
         <strong>{label}</strong>
         <small>{sub}</small>
       </div>
-      <input type="checkbox" role="switch" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <input
+        type="checkbox"
+        role="switch"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
       <span className="switch" />
     </label>
   );
@@ -37,28 +66,105 @@ function Toggle({ label, sub, checked, onChange }) {
 export default function Settings() {
   const { saved, save, t, sysDark, browserLang } = useSettings();
   const { user } = useAuth();
+
   const [section, setSection] = useState("preferences");
   const [draft, setDraft] = useState(saved);
-  const [flash, setFlash] = useState(false);
+  const [flash, setFlash] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+
+  const [profile, setProfile] = useState({
+    name: user?.name || "",
+    email: user?.email || "",
+  });
+  const [pw, setPw] = useState({ cur: "", next: "" });
 
   useEffect(() => setDraft(saved), [saved]);
 
-  const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
+  const prefsDirty = JSON.stringify(draft) !== JSON.stringify(saved);
+  const profileDirty =
+    profile.name.trim() !== (user?.name || "") ||
+    profile.email.trim() !== (user?.email || "");
+  const pwDirty = pw.cur.length > 0 || pw.next.length > 0;
+  const dirty = prefsDirty || profileDirty || pwDirty;
+
   const set = (patch) => setDraft((d) => ({ ...d, ...patch }));
 
-  const onSave = () => {
-    save(draft);
-    setFlash(true);
-    setTimeout(() => setFlash(false), 1800);
+  const onSave = async () => {
+    setError("");
+    setBusy(true);
+
+    try {
+      // 1. Mapendeleo (theme, lugha, ufikivu)
+      if (prefsDirty) save(draft);
+
+      // 2. Wasifu
+      if (profileDirty) {
+        const parts = profile.name.trim().split(/\s+/);
+        const first = parts.shift() || "";
+        const last = parts.join(" ");
+
+        const res = await fetch(`${API}/auth/me/`, {
+          method: "PATCH",
+          headers: authHeaders(),
+          body: JSON.stringify({
+            first_name: first,
+            last_name: last,
+            email: profile.email.trim(),
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(errorText(data));
+      }
+
+      // 3. Nenosiri
+      if (pwDirty) {
+        if (!pw.cur || pw.next.length < 6) {
+          throw new Error(
+            "Enter your current password and a new one (at least 6 characters)."
+          );
+        }
+
+        const res = await fetch(`${API}/auth/password/`, {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify({
+            old_password: pw.cur,
+            new_password: pw.next,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(errorText(data));
+        setPw({ cur: "", next: "" });
+      }
+
+      setFlash(t("set.saved"));
+      setTimeout(() => setFlash(""), 1800);
+
+      if (profileDirty) setTimeout(() => window.location.reload(), 900);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
   };
 
-  // Preview the draft theme live so the choice is visible before Save.
+  const onCancel = () => {
+    setDraft(saved);
+    setProfile({ name: user?.name || "", email: user?.email || "" });
+    setPw({ cur: "", next: "" });
+    setError("");
+  };
+
+  // Onyesha theme ya draft moja kwa moja kabla ya Save
   useEffect(() => {
-    const eff = draft.theme === "device" ? (sysDark ? "dark" : "light") : draft.theme;
+    const eff =
+      draft.theme === "device" ? (sysDark ? "dark" : "light") : draft.theme;
     document.documentElement.dataset.theme = eff;
     return () => {
-      const cur = saved.theme === "device" ? (sysDark ? "dark" : "light") : saved.theme;
+      const cur =
+        saved.theme === "device" ? (sysDark ? "dark" : "light") : saved.theme;
       document.documentElement.dataset.theme = cur;
     };
   }, [draft.theme, saved.theme, sysDark]);
@@ -84,7 +190,10 @@ export default function Settings() {
               </button>
             ))}
           </nav>
-          <button className="set-collapse" onClick={() => setCollapsed((c) => !c)}>
+          <button
+            className="set-collapse"
+            onClick={() => setCollapsed((c) => !c)}
+          >
             « <b>{t("set.collapse")}</b>
           </button>
         </aside>
@@ -175,9 +284,29 @@ export default function Settings() {
               <>
                 <h3>{t("set.profile")}</h3>
                 <div className="form flat">
-                  <label>{t("set.name")}<input defaultValue={user.name} /></label>
-                  <label>{t("set.reg")}<input defaultValue={user.regNo} /></label>
-                  <label>{t("set.email")}<input type="email" defaultValue={user.email} /></label>
+                  <label>
+                    {t("set.name")}
+                    <input
+                      value={profile.name}
+                      onChange={(e) =>
+                        setProfile((p) => ({ ...p, name: e.target.value }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    {t("set.reg")}
+                    <input value={user?.regNo || ""} readOnly />
+                  </label>
+                  <label>
+                    {t("set.email")}
+                    <input
+                      type="email"
+                      value={profile.email}
+                      onChange={(e) =>
+                        setProfile((p) => ({ ...p, email: e.target.value }))
+                      }
+                    />
+                  </label>
                 </div>
               </>
             )}
@@ -186,8 +315,28 @@ export default function Settings() {
               <>
                 <h3>{t("set.security")}</h3>
                 <div className="form flat">
-                  <label>{t("set.curPass")}<input type="password" autoComplete="current-password" /></label>
-                  <label>{t("set.newPass")}<input type="password" autoComplete="new-password" /></label>
+                  <label>
+                    {t("set.curPass")}
+                    <input
+                      type="password"
+                      autoComplete="current-password"
+                      value={pw.cur}
+                      onChange={(e) =>
+                        setPw((p) => ({ ...p, cur: e.target.value }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    {t("set.newPass")}
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      value={pw.next}
+                      onChange={(e) =>
+                        setPw((p) => ({ ...p, next: e.target.value }))
+                      }
+                    />
+                  </label>
                 </div>
               </>
             )}
@@ -196,20 +345,39 @@ export default function Settings() {
               <>
                 <h3>{t("set.notifications")}</h3>
                 <div className="toggles">
-                  <Toggle label={t("set.notifSup")} sub="" checked onChange={() => {}} />
-                  <Toggle label={t("set.notifGroup")} sub="" checked onChange={() => {}} />
+                  <Toggle
+                    label={t("set.notifSup")}
+                    sub=""
+                    checked
+                    onChange={() => {}}
+                  />
+                  <Toggle
+                    label={t("set.notifGroup")}
+                    sub=""
+                    checked
+                    onChange={() => {}}
+                  />
                 </div>
               </>
             )}
           </div>
 
           <footer className="set-foot">
-            {flash && <span className="saved-msg">{t("set.saved")}</span>}
-            <button className="btn-ghost" onClick={() => setDraft(saved)} disabled={!dirty}>
+            {error && <span className="auth-err">{error}</span>}
+            {flash && <span className="saved-msg">{flash}</span>}
+            <button
+              className="btn-ghost"
+              onClick={onCancel}
+              disabled={!dirty || busy}
+            >
               {t("set.cancel")}
             </button>
-            <button className="btn-save" onClick={onSave} disabled={!dirty}>
-              {t("set.save")}
+            <button
+              className="btn-save"
+              onClick={onSave}
+              disabled={!dirty || busy}
+            >
+              {busy ? "..." : t("set.save")}
             </button>
           </footer>
         </div>
