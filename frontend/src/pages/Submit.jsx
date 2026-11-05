@@ -270,6 +270,9 @@ export default function Submit() {
     e.preventDefault();
     setError("");
 
+  // Asilimia inayoonyeshwa: 1% mwanzoni, inajaa hadi 100% mwishoni
+  const shownPercent =
+    stage === "save" ? 100 : stage === "upload" ? Math.max(1, progress) : 1;
     if (picked.length === 0) {
       fail("Please select at least one technology.");
       return;
@@ -646,29 +649,20 @@ export default function Submit() {
 
         {error && <div className="hint">{error}</div>}
 
-        {loading && (
+          {loading && (
           <div className="progress-box" role="status" aria-live="polite">
             <div className="progress-top">
               <span>
-                {stage === "compress" && "Compressing image..."}
+                {stage === "compress" && "Preparing files..."}
                 {stage === "upload" && "Uploading files..."}
                 {stage === "save" && "Saving project..."}
               </span>
-              <b>{stage === "save" ? "100%" : `${progress}%`}</b>
+              <b>{shownPercent}%</b>
             </div>
             <div className="progress-track">
               <div
-                className={
-                  stage === "save" || stage === "compress"
-                    ? "progress-fill pulse"
-                    : "progress-fill"
-                }
-                style={{
-                  width:
-                    stage === "compress"
-                      ? "100%"
-                      : `${stage === "save" ? 100 : progress}%`,
-                }}
+                className="progress-fill"
+                style={{ width: `${shownPercent}%` }}
               />
             </div>
           </div>

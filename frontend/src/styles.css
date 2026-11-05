@@ -593,7 +593,7 @@ img, video { max-width: 100%; height: auto; }
   }
 }
 
-.progress-box {
+progress-box {
   margin: 4px 0 8px;
   padding: 12px 14px;
   border-radius: 12px;
