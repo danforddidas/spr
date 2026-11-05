@@ -62,6 +62,6 @@ export default function Topbar({ openMenu, setPage }) {
           ⏻
         </button>
       </div>
-    </button>
+    </header>
   );
 }
