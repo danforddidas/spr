@@ -34,6 +34,69 @@ function getError(data) {
   return "Project submission failed.";
 }
 
+const MAX_DOC_MB = 10;
+
+// Punguza picha kuwa upana wa juu 1200px, ubora 0.75 (kawaida chini ya 300KB)
+function compressImage(file, maxWidth = 1200, quality = 0.75) {
+  return new Promise((resolve) => {
+    if (!file || !file.type.startsWith("image/")) return resolve(file);
+
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+
+    img.onload = () => {
+      const scale = Math.min(1, maxWidth / img.width);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      canvas.toBlob(
+        (blob) => {
+          URL.revokeObjectURL(url);
+          resolve(
+            blob
+              ? new File([blob], file.name.replace(/\.\w+$/, ".jpg"), {
+                  type: "image/jpeg",
+                })
+              : file
+          );
+        },
+        "image/jpeg",
+        quality
+      );
+    };
+
+    img.onerror = () => resolve(file);
+    img.src = url;
+  });
+}
+
+// Tuma kwa XMLHttpRequest ili tupate progress
+function uploadWithProgress(url, headers, body, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+
+    Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v));
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+
+    xhr.onload = () => {
+      let data = {};
+      try {
+        data = JSON.parse(xhr.responseText);
+      } catch {}
+      resolve({ ok: xhr.status >= 200 && xhr.status < 300, data });
+    };
+
+    xhr.onerror = () => reject(new Error("Network error. Check your connection."));
+    xhr.send(body);
+  });
+}
+
 export default function Submit() {
   const [type, setType] = useState("individual");
 
@@ -196,6 +259,7 @@ export default function Submit() {
       setError("Please add at least one group member.");
       return;
     }
+    const [progress, setProgress] = useState(0);
 
     const payload = {
       title,

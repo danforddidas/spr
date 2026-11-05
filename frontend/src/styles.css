@@ -560,3 +560,21 @@ img, video { max-width: 100%; height: auto; }
   .btn { min-height: 44px; }
   input, select, textarea { font-size: 16px; } /* simu isivuze (zoom) ukibonyeza */
 }
+
+/* Hakikisha ukurasa unasogea chini na kitufe cha Save kinaonekana kwenye simu */
+.page { padding-bottom: 96px; overflow-x: hidden; overflow-y: visible; }
+
+@media (max-width: 900px) {
+  html, body, #root { height: auto; min-height: 100%; overflow-y: auto; }
+  .page form .btn,
+  .page form button[type="submit"],
+  .page .btn.wide {
+    position: sticky;
+    bottom: 12px;
+    width: 100%;
+    min-height: 48px;
+    z-index: 5;
+  }
+  .page .row { grid-template-columns: 1fr !important; }
+  .page input, .page select, .page textarea { width: 100%; box-sizing: border-box; }
+}
