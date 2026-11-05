@@ -613,3 +613,38 @@ img, video { max-width: 100%; height: auto; }
   color: #fff;
   font-weight: 700;
 }
+
+/* Jina na cheo vionekane kila wakati, pamoja na Logout kwenye topbar */
+.topbar .user-meta { display: block !important; line-height: 1.2; }
+.topbar .user-meta strong { font-size: 13px; }
+.topbar .user-meta span { font-size: 11px; }
+
+.topbar-logout {
+  background: var(--card);
+  color: var(--orange);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  width: 38px;
+  height: 38px;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.topbar-logout:hover { background: var(--orange); color: #fff; }
+
+/* Sidebar isifunikwe na upau wa anwani wa simu */
+@media (max-width: 900px) {
+  .sidebar {
+    height: 100dvh;
+    max-height: 100dvh;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .sidebar nav { min-height: 0; }
+  .sidebar-foot { flex-shrink: 0; }
+}
+
+/* Simu ndogo: nafasi ya kutosha kwenye topbar */
+@media (max-width: 480px) {
+  .topbar { padding: 0 10px; gap: 6px; }
+  .topbar-right { gap: 8px; }
+  .topbar .user-meta strong { max-width: 78px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}

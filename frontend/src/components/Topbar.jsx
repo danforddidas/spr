@@ -4,7 +4,7 @@ import { useAuth } from "../auth.jsx";
 const API = "/api";
 
 export default function Topbar({ openMenu, setPage }) {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [me, setMe] = useState(null);
 
   useEffect(() => {
@@ -29,9 +29,11 @@ export default function Topbar({ openMenu, setPage }) {
       <button className="menu-btn" onClick={openMenu} aria-label="Open menu">
         ☰
       </button>
+
       <div className="topbar-title">
         Ardhi University · <b>Weledi na Ustawi</b>
       </div>
+
       <div className="topbar-right">
         <button
           className="icon-btn"
@@ -40,6 +42,7 @@ export default function Topbar({ openMenu, setPage }) {
         >
           🔔<i className="pulse" />
         </button>
+
         <div className="user-chip">
           <div className="avatar sm">
             {(firstName[0] || "U").toUpperCase()}
@@ -49,7 +52,16 @@ export default function Topbar({ openMenu, setPage }) {
             <span>{role}</span>
           </div>
         </div>
+
+        <button
+          className="topbar-logout"
+          onClick={logout}
+          title="Log out"
+          aria-label="Log out"
+        >
+          ⏻
+        </button>
       </div>
-    </header>
+    </button>
   );
 }
