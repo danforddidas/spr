@@ -100,6 +100,7 @@ function compressImage(file, maxWidth = 1200, quality = 0.75) {
   });
 }
 
+// Upload progress based on actual bytes sent by the browser
 function uploadWithProgress(url, headers, body, onProgress) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -112,12 +113,13 @@ function uploadWithProgress(url, headers, body, onProgress) {
     });
 
     xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable) {
-        const percent = Math.round(
-          (event.loaded / event.total) * 100
+      if (event.lengthComputable && event.total > 0) {
+        const percent = Math.min(
+          100,
+          Math.floor((event.loaded / event.total) * 100)
         );
 
-        onProgress(percent);
+        onProgress(percent, event.loaded, event.total);
       }
     };
 
@@ -182,18 +184,15 @@ export default function Submit() {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [stage, setStage] = useState("");
+  const [uploadedBytes, setUploadedBytes] = useState(0);
+  const [totalBytes, setTotalBytes] = useState(0);
   const [initialLoading, setInitialLoading] = useState(true);
 
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
   const [submittedTitle, setSubmittedTitle] = useState("");
 
-  const shownPercent =
-    stage === "save"
-      ? 100
-      : stage === "upload"
-      ? Math.max(1, progress)
-      : 1;
+  const shownPercent = stage === "save" ? 100 : progress;
 
   const fail = (message) => {
     setError(message);
@@ -204,15 +203,12 @@ export default function Submit() {
   useEffect(() => {
     async function loadInitialData() {
       try {
-        const [
-          schoolData,
-          techData,
-          supervisorData,
-        ] = await Promise.all([
-          apiGet("/schools/"),
-          apiGet("/technologies/"),
-          apiGet("/supervisors/"),
-        ]);
+        const [schoolData, techData, supervisorData] =
+          await Promise.all([
+            apiGet("/schools/"),
+            apiGet("/technologies/"),
+            apiGet("/supervisors/"),
+          ]);
 
         setSchools(schoolData);
         setTechnologies(techData);
@@ -384,6 +380,8 @@ export default function Submit() {
 
     setLoading(true);
     setProgress(0);
+    setUploadedBytes(0);
+    setTotalBytes(0);
     setStage("compress");
 
     try {
@@ -437,12 +435,10 @@ export default function Submit() {
         `${API}/projects/`,
         headers,
         body,
-        (percent) => {
+        (percent, loaded, total) => {
           setProgress(percent);
-
-          if (percent >= 100) {
-            setStage("save");
-          }
+          setUploadedBytes(loaded);
+          setTotalBytes(total);
         }
       );
 
@@ -481,9 +477,7 @@ export default function Submit() {
             <b>{submittedTitle}</b>
           </p>
 
-          <span className="badge orange">
-            Pending Review
-          </span>
+          <span className="badge orange">Pending Review</span>
 
           <br />
           <br />
@@ -510,16 +504,10 @@ export default function Submit() {
       </div>
 
       <form className="card form" onSubmit={submit}>
-        {error && (
-          <div className="hint">
-            {error}
-          </div>
-        )}
+        {error && <div className="hint">{error}</div>}
 
         {initialLoading && (
-          <p className="muted">
-            Loading university information...
-          </p>
+          <p className="muted">Loading university information...</p>
         )}
 
         {/* Submission type */}
@@ -528,11 +516,7 @@ export default function Submit() {
             <button
               type="button"
               key={item}
-              className={
-                type === item
-                  ? "seg-btn active"
-                  : "seg-btn"
-              }
+              className={type === item ? "seg-btn active" : "seg-btn"}
               onClick={() => {
                 setType(item);
                 setError("");
@@ -553,7 +537,6 @@ export default function Submit() {
         {/* School */}
         <label>
           School
-
           <select
             value={school}
             onChange={(e) => {
@@ -564,7 +547,6 @@ export default function Submit() {
             required
           >
             <option value="">Select school</option>
-
             {schools.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name}
@@ -577,7 +559,6 @@ export default function Submit() {
         <div className="row">
           <label>
             Department
-
             <select
               value={dept}
               onChange={(e) => {
@@ -588,7 +569,6 @@ export default function Submit() {
               required
             >
               <option value="">Select department</option>
-
               {departments.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name}
@@ -599,7 +579,6 @@ export default function Submit() {
 
           <label>
             Course
-
             <select
               value={course}
               onChange={(e) => setCourse(e.target.value)}
@@ -607,7 +586,6 @@ export default function Submit() {
               required
             >
               <option value="">Select course</option>
-
               {courses.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name}
@@ -620,7 +598,6 @@ export default function Submit() {
         {/* Year */}
         <label>
           Project year
-
           <input
             type="number"
             min="2000"
@@ -634,7 +611,6 @@ export default function Submit() {
         {/* Title */}
         <label>
           Project title
-
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -646,7 +622,6 @@ export default function Submit() {
         {/* Description */}
         <label>
           Description
-
           <textarea
             rows="4"
             value={desc}
@@ -658,20 +633,13 @@ export default function Submit() {
 
         {/* Technologies */}
         <div>
-          <span className="label">
-            Technologies used
-          </span>
-
+          <span className="label">Technologies used</span>
           <div className="tech-pick">
             {technologies.map((item) => (
               <button
                 type="button"
                 key={item.id}
-                className={
-                  picked.includes(item.id)
-                    ? "pick on"
-                    : "pick"
-                }
+                className={picked.includes(item.id) ? "pick on" : "pick"}
                 onClick={() => toggleTechnology(item.id)}
               >
                 {item.name}
@@ -682,17 +650,12 @@ export default function Submit() {
 
         {/* Supervisors */}
         <div>
-          <span className="label">
-            Select exactly two supervisors
-          </span>
-
+          <span className="label">Select exactly two supervisors</span>
           <div className="tech-pick">
             {supervisors.map((item) => {
               const name =
                 item.full_name ||
-                `${item.first_name || ""} ${
-                  item.last_name || ""
-                }`.trim() ||
+                `${item.first_name || ""} ${item.last_name || ""}`.trim() ||
                 item.username;
 
               return (
@@ -700,9 +663,7 @@ export default function Submit() {
                   type="button"
                   key={item.id}
                   className={
-                    pickedSupervisors.includes(item.id)
-                      ? "pick on"
-                      : "pick"
+                    pickedSupervisors.includes(item.id) ? "pick on" : "pick"
                   }
                   onClick={() => toggleSupervisor(item.id)}
                 >
@@ -711,13 +672,12 @@ export default function Submit() {
               );
             })}
           </div>
-
           <small className="muted">
             Selected: {pickedSupervisors.length}/2
           </small>
         </div>
 
-        {/* GROUP MEMBERS */}
+        {/* Group members */}
         {type === "group" && (
           <div
             style={{
@@ -727,9 +687,7 @@ export default function Submit() {
               borderRadius: "12px",
             }}
           >
-            <h3 style={{ marginTop: 0 }}>
-              Group Members
-            </h3>
+            <h3 style={{ marginTop: 0 }}>Group Members</h3>
 
             <p className="muted">
               Search for registered students and add them to your project.
@@ -737,7 +695,6 @@ export default function Submit() {
 
             <label>
               Search registered students
-
               <input
                 type="search"
                 value={studentSearch}
@@ -751,8 +708,7 @@ export default function Submit() {
                 {studentResults.length > 0 ? (
                   studentResults.map((student) => {
                     const alreadyAdded = members.some(
-                      (member) =>
-                        String(member.id) === String(student.id)
+                      (member) => String(member.id) === String(student.id)
                     );
 
                     return (
@@ -770,8 +726,7 @@ export default function Submit() {
                         </strong>
 
                         <p className="muted">
-                          Registration Number:{" "}
-                          {student.reg_number || "Not available"}
+                          Registration Number: {student.reg_number || "Not available"}
                         </p>
 
                         <button
@@ -784,42 +739,29 @@ export default function Submit() {
                             marginTop: "8px",
                             border: "none",
                             borderRadius: "8px",
-                            background: alreadyAdded
-                              ? "#777"
-                              : "#198754",
+                            background: alreadyAdded ? "#777" : "#198754",
                             color: "#fff",
                             fontWeight: "700",
                             fontSize: "15px",
-                            cursor: alreadyAdded
-                              ? "not-allowed"
-                              : "pointer",
+                            cursor: alreadyAdded ? "not-allowed" : "pointer",
                           }}
                         >
-                          {alreadyAdded
-                            ? "✓ Member Added"
-                            : "+ Add Member"}
+                          {alreadyAdded ? "✓ Member Added" : "+ Add Member"}
                         </button>
                       </div>
                     );
                   })
                 ) : (
-                  <p className="muted">
-                    No registered students found.
-                  </p>
+                  <p className="muted">No registered students found.</p>
                 )}
               </div>
             )}
 
-            {/* Selected members */}
             <div style={{ marginTop: "20px" }}>
-              <h4>
-                Selected Members ({members.length})
-              </h4>
+              <h4>Selected Members ({members.length})</h4>
 
               {members.length === 0 ? (
-                <p className="muted">
-                  No group members added yet.
-                </p>
+                <p className="muted">No group members added yet.</p>
               ) : (
                 members.map((student) => (
                   <div
@@ -838,10 +780,7 @@ export default function Submit() {
                       <strong>
                         {student.full_name || student.username}
                       </strong>
-
-                      <p className="muted">
-                        {student.reg_number || ""}
-                      </p>
+                      <p className="muted">{student.reg_number || ""}</p>
                     </div>
 
                     <button
@@ -869,7 +808,6 @@ export default function Submit() {
         {/* Repository URL */}
         <label>
           Repository URL (optional)
-
           <input
             type="url"
             value={repoUrl}
@@ -881,7 +819,6 @@ export default function Submit() {
         {/* Demo URL */}
         <label>
           Demo URL (optional)
-
           <input
             type="url"
             value={demoUrl}
@@ -893,51 +830,36 @@ export default function Submit() {
         {/* Cover image */}
         <label>
           Project cover image (optional)
-
           <input
             type="file"
             accept="image/*"
-            onChange={(e) =>
-              setCover(e.target.files?.[0] || null)
-            }
+            onChange={(e) => setCover(e.target.files?.[0] || null)}
           />
         </label>
 
         {/* Document */}
         <label>
           Project document (PDF, DOC, DOCX, max {MAX_DOC_MB}MB)
-
           <input
             type="file"
             accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            onChange={(e) =>
-              setDocumentFile(e.target.files?.[0] || null)
-            }
+            onChange={(e) => setDocumentFile(e.target.files?.[0] || null)}
           />
         </label>
 
         {/* Attachments */}
         <label>
           Additional files (ZIP, etc.) (optional)
-
           <input
             type="file"
             multiple
             onChange={(e) =>
-              setAttachments(
-                Array.from(e.target.files || [])
-              )
+              setAttachments(Array.from(e.target.files || []))
             }
           />
         </label>
 
-        {error && (
-          <div className="hint">
-            {error}
-          </div>
-        )}
-
-        {/* VISIBLE UPLOAD PROGRESS */}
+        {/* Actual upload progress */}
         {loading && (
           <div
             style={{
@@ -991,7 +913,7 @@ export default function Submit() {
                   height: "100%",
                   background: "#198754",
                   borderRadius: "20px",
-                  transition: "width 0.25s ease",
+                  transition: "width 0.15s linear",
                 }}
               />
             </div>
@@ -1004,19 +926,23 @@ export default function Submit() {
               }}
             >
               {stage === "compress"
-                ? "Please wait while your images are prepared."
+                ? "Preparing your image before upload."
                 : stage === "save"
                 ? "Upload complete. Waiting for server confirmation..."
-                : "Please do not close this page while uploading."}
+                : totalBytes > 0
+                ? `${(uploadedBytes / (1024 * 1024)).toFixed(2)} MB / ${(totalBytes / (1024 * 1024)).toFixed(2)} MB sent`
+                : "Waiting for upload progress information..."}
             </small>
           </div>
         )}
+
+        {error && <div className="hint">{error}</div>}
 
         {/* Submit button */}
         <button
           className="btn"
           type="submit"
-          disabled={loading}
+          disabled={loading || initialLoading}
           style={{
             position: "relative",
             overflow: "hidden",
@@ -1039,7 +965,7 @@ export default function Submit() {
                 bottom: 0,
                 width: `${shownPercent}%`,
                 background: "#22a559",
-                transition: "width .25s ease",
+                transition: "width .15s linear",
               }}
             />
           )}
