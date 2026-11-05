@@ -35,14 +35,14 @@ function getError(data, status) {
     if (text) return text;
   }
 
-  if (status >= 500) {
-    return "Server error. Please try again, or use a smaller file.";
-  }
-
   if (status === 413) return "Files are too large. Use smaller files.";
 
   if (status === 401 || status === 403) {
     return "Your session expired. Please log in again.";
+  }
+
+  if (status >= 500) {
+    return "Server error. Please try again, or use smaller files.";
   }
 
   return "Project submission failed. Please try again.";
@@ -113,9 +113,11 @@ function uploadWithProgress(url, headers, body, onProgress) {
 
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) {
-        onProgress(
-          Math.round((event.loaded / event.total) * 100)
+        const percent = Math.round(
+          (event.loaded / event.total) * 100
         );
+
+        onProgress(percent);
       }
     };
 
@@ -389,8 +391,6 @@ export default function Submit() {
         Authorization: `Token ${token()}`,
       };
 
-      let body;
-
       const smallCover = cover
         ? await compressImage(cover)
         : null;
@@ -400,7 +400,7 @@ export default function Submit() {
         documentFile ||
         attachments.length > 0;
 
-      setStage("upload");
+      let body;
 
       if (hasFiles) {
         body = new FormData();
@@ -431,6 +431,8 @@ export default function Submit() {
         body = JSON.stringify(payload);
       }
 
+      setStage("upload");
+
       const { ok, data, status } = await uploadWithProgress(
         `${API}/projects/`,
         headers,
@@ -447,6 +449,9 @@ export default function Submit() {
       if (!ok) {
         throw new Error(getError(data, status));
       }
+
+      setProgress(100);
+      setStage("save");
 
       setSubmittedTitle(data.title || title);
       setDone(true);
@@ -932,6 +937,81 @@ export default function Submit() {
           </div>
         )}
 
+        {/* VISIBLE UPLOAD PROGRESS */}
+        {loading && (
+          <div
+            style={{
+              margin: "18px 0",
+              padding: "16px",
+              border: "1px solid #dce5ec",
+              borderRadius: "12px",
+              background: "#f8fbff",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "10px",
+                gap: "10px",
+              }}
+            >
+              <strong>
+                {stage === "compress"
+                  ? "Preparing files..."
+                  : stage === "save"
+                  ? "Saving project..."
+                  : "Uploading project files..."}
+              </strong>
+
+              <strong
+                style={{
+                  color: "#198754",
+                  fontSize: "20px",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {shownPercent}%
+              </strong>
+            </div>
+
+            <div
+              style={{
+                width: "100%",
+                height: "14px",
+                background: "#dce5ec",
+                borderRadius: "20px",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  width: `${shownPercent}%`,
+                  height: "100%",
+                  background: "#198754",
+                  borderRadius: "20px",
+                  transition: "width 0.25s ease",
+                }}
+              />
+            </div>
+
+            <small
+              style={{
+                color: "#64748b",
+                display: "block",
+                marginTop: "8px",
+              }}
+            >
+              {stage === "compress"
+                ? "Please wait while your images are prepared."
+                : stage === "save"
+                ? "Upload complete. Waiting for server confirmation..."
+                : "Please do not close this page while uploading."}
+            </small>
+          </div>
+        )}
+
         {/* Submit button */}
         <button
           className="btn"
@@ -972,7 +1052,9 @@ export default function Submit() {
             }}
           >
             {loading
-              ? stage === "save"
+              ? stage === "compress"
+                ? "Preparing files..."
+                : stage === "save"
                 ? "Saving... 100%"
                 : `Uploading... ${shownPercent}%`
               : "Submit project"}
