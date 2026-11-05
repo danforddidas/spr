@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 const API = "/api";
+const MAX_DOC_MB = 10;
 
 function token() {
   return localStorage.getItem("spr-token");
@@ -20,23 +21,29 @@ async function apiGet(endpoint) {
   return Array.isArray(data) ? data : data.results || [];
 }
 
-function getError(data) {
-  if (data.detail) return data.detail;
+function getError(data, status) {
+  if (data?.detail) return data.detail;
 
-  if (typeof data === "object") {
-    return Object.entries(data)
+  if (data && typeof data === "object") {
+    const text = Object.entries(data)
       .map(([key, value]) =>
         `${key}: ${Array.isArray(value) ? value.join(", ") : value}`
       )
       .join(" | ");
+    if (text) return text;
   }
 
-  return "Project submission failed.";
+  if (status >= 500) {
+    return "Server error. Please try again, or use a smaller file.";
+  }
+  if (status === 413) return "Files are too large. Use smaller files.";
+  if (status === 401 || status === 403) {
+    return "Your session expired. Please log in again.";
+  }
+  return "Project submission failed. Please try again.";
 }
 
-const MAX_DOC_MB = 10;
-
-// Punguza picha kuwa upana wa juu 1200px, ubora 0.75 (kawaida chini ya 300KB)
+// Punguza picha: upana wa juu 1200px, ubora 0.75
 function compressImage(file, maxWidth = 1200, quality = 0.75) {
   return new Promise((resolve) => {
     if (!file || !file.type.startsWith("image/")) return resolve(file);
@@ -67,7 +74,10 @@ function compressImage(file, maxWidth = 1200, quality = 0.75) {
       );
     };
 
-    img.onerror = () => resolve(file);
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(file);
+    };
     img.src = url;
   });
 }
@@ -77,22 +87,35 @@ function uploadWithProgress(url, headers, body, onProgress) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", url);
+    xhr.timeout = 180000; // dakika 3
 
     Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v));
 
     xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+      if (e.lengthComputable) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
     };
 
     xhr.onload = () => {
       let data = {};
       try {
         data = JSON.parse(xhr.responseText);
-      } catch {}
-      resolve({ ok: xhr.status >= 200 && xhr.status < 300, data });
+      } catch {
+        data = {};
+      }
+      resolve({
+        ok: xhr.status >= 200 && xhr.status < 300,
+        data,
+        status: xhr.status,
+      });
     };
 
-    xhr.onerror = () => reject(new Error("Network error. Check your connection."));
+    xhr.onerror = () =>
+      reject(new Error("Network error. Check your connection."));
+    xhr.ontimeout = () =>
+      reject(new Error("Upload took too long. Try smaller files."));
+
     xhr.send(body);
   });
 }
@@ -128,20 +151,25 @@ export default function Submit() {
   const [studentResults, setStudentResults] = useState([]);
 
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
   const [submittedTitle, setSubmittedTitle] = useState("");
 
+  const fail = (message) => {
+    setError(message);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   useEffect(() => {
     async function loadInitialData() {
       try {
-        const [schoolData, techData, supervisorData] =
-          await Promise.all([
-            apiGet("/schools/"),
-            apiGet("/technologies/"),
-            apiGet("/supervisors/"),
-          ]);
+        const [schoolData, techData, supervisorData] = await Promise.all([
+          apiGet("/schools/"),
+          apiGet("/technologies/"),
+          apiGet("/supervisors/"),
+        ]);
 
         setSchools(schoolData);
         setTechnologies(techData);
@@ -190,9 +218,7 @@ export default function Submit() {
 
     apiGet(`/students/?search=${encodeURIComponent(query)}`)
       .then((data) => {
-        if (active) {
-          setStudentResults(data);
-        }
+        if (active) setStudentResults(data);
       })
       .catch((err) => {
         if (active) setError(err.message);
@@ -236,9 +262,7 @@ export default function Submit() {
   };
 
   const removeMember = (id) => {
-    setMembers((current) =>
-      current.filter((student) => student.id !== id)
-    );
+    setMembers((current) => current.filter((student) => student.id !== id));
   };
 
   const submit = async (e) => {
@@ -246,20 +270,24 @@ export default function Submit() {
     setError("");
 
     if (picked.length === 0) {
-      setError("Please select at least one technology.");
+      fail("Please select at least one technology.");
       return;
     }
 
     if (pickedSupervisors.length !== 2) {
-      setError("Please select exactly two supervisors.");
+      fail("Please select exactly two supervisors.");
       return;
     }
 
     if (type === "group" && members.length === 0) {
-      setError("Please add at least one group member.");
+      fail("Please add at least one group member.");
       return;
     }
-    const [progress, setProgress] = useState(0);
+
+    if (documentFile && documentFile.size > MAX_DOC_MB * 1024 * 1024) {
+      fail(`Document must be smaller than ${MAX_DOC_MB}MB.`);
+      return;
+    }
 
     const payload = {
       title,
@@ -275,15 +303,14 @@ export default function Submit() {
     };
 
     setLoading(true);
+    setProgress(0);
 
     try {
+      const headers = { Authorization: `Token ${token()}` };
       let body;
-      let headers = {
-        Authorization: `Token ${token()}`,
-      };
 
-      const hasFiles =
-        cover || documentFile || attachments.length > 0;
+      const smallCover = cover ? await compressImage(cover) : null;
+      const hasFiles = smallCover || documentFile || attachments.length > 0;
 
       if (hasFiles) {
         body = new FormData();
@@ -296,7 +323,7 @@ export default function Submit() {
           }
         });
 
-        if (cover) body.append("cover", cover);
+        if (smallCover) body.append("cover", smallCover);
         if (documentFile) body.append("document", documentFile);
         attachments.forEach((file) => body.append("attachments", file));
         // USIWEKE Content-Type hapa, browser inaweka yenyewe
@@ -305,22 +332,19 @@ export default function Submit() {
         body = JSON.stringify(payload);
       }
 
-      const response = await fetch(`${API}/projects/`, {
-        method: "POST",
+      const { ok, data, status } = await uploadWithProgress(
+        `${API}/projects/`,
         headers,
         body,
-      });
+        setProgress
+      );
 
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(getError(data));
-      }
+      if (!ok) throw new Error(getError(data, status));
 
       setSubmittedTitle(data.title || title);
       setDone(true);
     } catch (err) {
-      setError(err.message);
+      fail(err.message || "Submission failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -342,10 +366,7 @@ export default function Submit() {
           <span className="badge orange">Pending Review</span>
           <br />
           <br />
-          <button
-            className="btn"
-            onClick={() => window.location.reload()}
-          >
+          <button className="btn" onClick={() => window.location.reload()}>
             Submit another
           </button>
         </div>
@@ -363,11 +384,7 @@ export default function Submit() {
       </div>
 
       <form className="card form" onSubmit={submit}>
-        {error && (
-          <div className="hint">
-            {error}
-          </div>
-        )}
+        {error && <div className="hint">{error}</div>}
 
         {initialLoading && (
           <p className="muted">Loading university information...</p>
@@ -492,9 +509,7 @@ export default function Submit() {
               <button
                 type="button"
                 key={item.id}
-                className={
-                  picked.includes(item.id) ? "pick on" : "pick"
-                }
+                className={picked.includes(item.id) ? "pick on" : "pick"}
                 onClick={() => toggleTechnology(item.id)}
               >
                 {item.name}
@@ -504,9 +519,7 @@ export default function Submit() {
         </div>
 
         <div>
-          <span className="label">
-            Select exactly two supervisors
-          </span>
+          <span className="label">Select exactly two supervisors</span>
 
           <div className="tech-pick">
             {supervisors.map((item) => {
@@ -519,9 +532,7 @@ export default function Submit() {
                   type="button"
                   key={item.id}
                   className={
-                    pickedSupervisors.includes(item.id)
-                      ? "pick on"
-                      : "pick"
+                    pickedSupervisors.includes(item.id) ? "pick on" : "pick"
                   }
                   onClick={() => toggleSupervisor(item.id)}
                 >
@@ -549,9 +560,7 @@ export default function Submit() {
 
             {studentResults.map((student) => (
               <div className="card" key={student.id}>
-                <strong>
-                  {student.full_name || student.username}
-                </strong>
+                <strong>{student.full_name || student.username}</strong>
                 <p className="muted">{student.reg_number}</p>
                 <button
                   type="button"
@@ -610,7 +619,7 @@ export default function Submit() {
         </label>
 
         <label>
-          Project document (PDF, DOC, DOCX)
+          Project document (PDF, DOC, DOCX, max {MAX_DOC_MB}MB)
           <input
             type="file"
             accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -627,8 +636,14 @@ export default function Submit() {
           />
         </label>
 
+        {error && <div className="hint">{error}</div>}
+
         <button className="btn" type="submit" disabled={loading}>
-          {loading ? "Submitting..." : "Submit project"}
+          {loading
+            ? progress > 0 && progress < 100
+              ? `Uploading... ${progress}%`
+              : "Saving..."
+            : "Submit project"}
         </button>
       </form>
     </div>
