@@ -158,6 +158,10 @@ export default function Submit() {
   const [done, setDone] = useState(false);
   const [submittedTitle, setSubmittedTitle] = useState("");
 
+  // Asilimia kwenye kitufe: 1% mwanzoni hadi 100%
+  const shownPercent =
+    stage === "save" ? 100 : stage === "upload" ? Math.max(1, progress) : 1;
+
   const fail = (message) => {
     setError(message);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -270,9 +274,6 @@ export default function Submit() {
     e.preventDefault();
     setError("");
 
-  // Asilimia inayoonyeshwa: 1% mwanzoni, inajaa hadi 100% mwishoni
-  const shownPercent =
-    stage === "save" ? 100 : stage === "upload" ? Math.max(1, progress) : 1;
     if (picked.length === 0) {
       fail("Please select at least one technology.");
       return;
@@ -649,33 +650,38 @@ export default function Submit() {
 
         {error && <div className="hint">{error}</div>}
 
+        <button
+          className="btn"
+          type="submit"
+          disabled={loading}
+          style={{
+            position: "relative",
+            overflow: "hidden",
+            ...(loading
+              ? { background: "#5b6b7a", color: "#fff", opacity: 1, cursor: "wait" }
+              : {}),
+          }}
+        >
           {loading && (
-          <div className="progress-box" role="status" aria-live="polite">
-            <div className="progress-top">
-              <span>
-                {stage === "compress" && "Preparing files..."}
-                {stage === "upload" && "Uploading files..."}
-                {stage === "save" && "Saving project..."}
-              </span>
-              <b>{shownPercent}%</b>
-            </div>
-            <div className="progress-track">
-              <div
-                className="progress-fill"
-                style={{ width: `${shownPercent}%` }}
-              />
-            </div>
-          </div>
-        )}
-
-        <button className="btn" type="submit" disabled={loading}>
-          {loading
-            ? stage === "upload"
-              ? `Uploading... ${progress}%`
-              : stage === "save"
-              ? "Saving..."
-              : "Please wait..."
-            : "Submit project"}
+            <span
+              style={{
+                position: "absolute",
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: `${shownPercent}%`,
+                background: "#22a559",
+                transition: "width .25s ease",
+              }}
+            />
+          )}
+          <span style={{ position: "relative", zIndex: 1, fontWeight: 700 }}>
+            {loading
+              ? stage === "save"
+                ? "Saving... 100%"
+                : `Uploading... ${shownPercent}%`
+              : "Submit project"}
+          </span>
         </button>
       </form>
     </div>
