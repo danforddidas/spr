@@ -1,4 +1,3 @@
-
 import {
   createContext,
   useCallback,
@@ -45,14 +44,15 @@ async function apiRequest(endpoint, options = {}, token = null) {
 
   const data = await response.json().catch(() => ({}));
 
-  if (!response.ok) {A
+  if (!response.ok) {
     throw new Error(getError(data));
   }
 
   return data;
 }
 
-function formatUser(user) {
+// FIX: default parameter {} huilinda dhidi ya "Cannot read properties of undefined"
+function formatUser(user = {}) {
   return {
     ...user,
     name:
@@ -75,7 +75,6 @@ export function AuthProvider({ children }) {
     setUser(safeUser);
   }, []);
 
-  // Restore existing login session
   useEffect(() => {
     let active = true;
 
@@ -110,7 +109,6 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
-  // Registration
   const register = useCallback(async (data) => {
     try {
       const response = await apiRequest("/auth/register/", {
@@ -127,6 +125,13 @@ export function AuthProvider({ children }) {
         }),
       });
 
+      if (!response.token || !response.user) {
+        return {
+          ok: false,
+          error: "Invalid server response. Please try again.",
+        };
+      }
+
       start(response.token, response.user);
       return { ok: true };
     } catch (error) {
@@ -134,7 +139,6 @@ export function AuthProvider({ children }) {
     }
   }, [start]);
 
-  // Login
   const login = useCallback(async (identifier, password) => {
     try {
       const response = await apiRequest("/auth/login/", {
@@ -145,6 +149,15 @@ export function AuthProvider({ children }) {
         }),
       });
 
+      // FIX: hakuna tena otp_required — tukitumia backend mpya response
+      // itakuwa na token + user kila wakati
+      if (!response.token || !response.user) {
+        return {
+          ok: false,
+          error: "Invalid server response. Please try again.",
+        };
+      }
+
       start(response.token, response.user);
       return { ok: true };
     } catch (error) {
@@ -152,7 +165,6 @@ export function AuthProvider({ children }) {
     }
   }, [start]);
 
-  // Logout
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN);
     localStorage.removeItem(SESSION);

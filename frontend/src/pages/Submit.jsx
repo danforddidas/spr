@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 
 const API = "/api";
@@ -30,23 +31,28 @@ function getError(data, status) {
         `${key}: ${Array.isArray(value) ? value.join(", ") : value}`
       )
       .join(" | ");
+
     if (text) return text;
   }
 
   if (status >= 500) {
     return "Server error. Please try again, or use a smaller file.";
   }
+
   if (status === 413) return "Files are too large. Use smaller files.";
+
   if (status === 401 || status === 403) {
     return "Your session expired. Please log in again.";
   }
+
   return "Project submission failed. Please try again.";
 }
 
-// Punguza picha: upana wa juu 1200px, ubora 0.75
 function compressImage(file, maxWidth = 1200, quality = 0.75) {
   return new Promise((resolve) => {
-    if (!file || !file.type.startsWith("image/")) return resolve(file);
+    if (!file || !file.type.startsWith("image/")) {
+      return resolve(file);
+    }
 
     const img = new Image();
     const url = URL.createObjectURL(file);
@@ -54,18 +60,29 @@ function compressImage(file, maxWidth = 1200, quality = 0.75) {
     img.onload = () => {
       const scale = Math.min(1, maxWidth / img.width);
       const canvas = document.createElement("canvas");
+
       canvas.width = Math.round(img.width * scale);
       canvas.height = Math.round(img.height * scale);
-      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      canvas.getContext("2d").drawImage(
+        img,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      );
 
       canvas.toBlob(
         (blob) => {
           URL.revokeObjectURL(url);
+
           resolve(
             blob
-              ? new File([blob], file.name.replace(/\.\w+$/, ".jpg"), {
-                  type: "image/jpeg",
-                })
+              ? new File(
+                  [blob],
+                  file.name.replace(/\.\w+$/, ".jpg"),
+                  { type: "image/jpeg" }
+                )
               : file
           );
         },
@@ -78,32 +95,39 @@ function compressImage(file, maxWidth = 1200, quality = 0.75) {
       URL.revokeObjectURL(url);
       resolve(file);
     };
+
     img.src = url;
   });
 }
 
-// Tuma kwa XMLHttpRequest ili tupate progress
 function uploadWithProgress(url, headers, body, onProgress) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
+
     xhr.open("POST", url);
-    xhr.timeout = 180000; // dakika 3
+    xhr.timeout = 180000;
 
-    Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v));
+    Object.entries(headers).forEach(([key, value]) => {
+      xhr.setRequestHeader(key, value);
+    });
 
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) {
-        onProgress(Math.round((e.loaded / e.total) * 100));
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        onProgress(
+          Math.round((event.loaded / event.total) * 100)
+        );
       }
     };
 
     xhr.onload = () => {
       let data = {};
+
       try {
         data = JSON.parse(xhr.responseText);
       } catch {
         data = {};
       }
+
       resolve({
         ok: xhr.status >= 200 && xhr.status < 300,
         data,
@@ -111,10 +135,13 @@ function uploadWithProgress(url, headers, body, onProgress) {
       });
     };
 
-    xhr.onerror = () =>
+    xhr.onerror = () => {
       reject(new Error("Network error. Check your connection."));
-    xhr.ontimeout = () =>
+    };
+
+    xhr.ontimeout = () => {
       reject(new Error("Upload took too long. Try smaller files."));
+    };
 
     xhr.send(body);
   });
@@ -139,13 +166,13 @@ export default function Submit() {
   const [repoUrl, setRepoUrl] = useState("");
   const [demoUrl, setDemoUrl] = useState("");
 
-  // Files
   const [cover, setCover] = useState(null);
   const [documentFile, setDocumentFile] = useState(null);
   const [attachments, setAttachments] = useState([]);
 
   const [picked, setPicked] = useState([]);
   const [pickedSupervisors, setPickedSupervisors] = useState([]);
+
   const [members, setMembers] = useState([]);
   const [studentSearch, setStudentSearch] = useState("");
   const [studentResults, setStudentResults] = useState([]);
@@ -154,23 +181,32 @@ export default function Submit() {
   const [progress, setProgress] = useState(0);
   const [stage, setStage] = useState("");
   const [initialLoading, setInitialLoading] = useState(true);
+
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
   const [submittedTitle, setSubmittedTitle] = useState("");
 
-  // Asilimia kwenye kitufe: 1% mwanzoni hadi 100%
   const shownPercent =
-    stage === "save" ? 100 : stage === "upload" ? Math.max(1, progress) : 1;
+    stage === "save"
+      ? 100
+      : stage === "upload"
+      ? Math.max(1, progress)
+      : 1;
 
   const fail = (message) => {
     setError(message);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  // Load university information
   useEffect(() => {
     async function loadInitialData() {
       try {
-        const [schoolData, techData, supervisorData] = await Promise.all([
+        const [
+          schoolData,
+          techData,
+          supervisorData,
+        ] = await Promise.all([
           apiGet("/schools/"),
           apiGet("/technologies/"),
           apiGet("/supervisors/"),
@@ -189,6 +225,7 @@ export default function Submit() {
     loadInitialData();
   }, []);
 
+  // Load departments
   useEffect(() => {
     if (!school) {
       setDepartments([]);
@@ -200,6 +237,7 @@ export default function Submit() {
       .catch((err) => setError(err.message));
   }, [school]);
 
+  // Load courses
   useEffect(() => {
     if (!dept) {
       setCourses([]);
@@ -211,6 +249,7 @@ export default function Submit() {
       .catch((err) => setError(err.message));
   }, [dept]);
 
+  // Search registered students automatically
   useEffect(() => {
     const query = studentSearch.trim();
 
@@ -234,6 +273,7 @@ export default function Submit() {
     };
   }, [studentSearch, type]);
 
+  // Select technology
   const toggleTechnology = (id) => {
     setPicked((current) =>
       current.includes(id)
@@ -242,9 +282,11 @@ export default function Submit() {
     );
   };
 
+  // Select exactly two supervisors
   const toggleSupervisor = (id) => {
     setPickedSupervisors((current) => {
       if (current.includes(id)) {
+        setError("");
         return current.filter((item) => item !== id);
       }
 
@@ -258,21 +300,46 @@ export default function Submit() {
     });
   };
 
+  // Add group member
   const addMember = (student) => {
-    if (members.some((item) => item.id === student.id)) return;
+    setMembers((current) => {
+      const exists = current.some(
+        (item) => String(item.id) === String(student.id)
+      );
 
-    setMembers((current) => [...current, student]);
+      if (exists) return current;
+
+      return [...current, student];
+    });
+
     setStudentSearch("");
     setStudentResults([]);
+    setError("");
   };
 
+  // Remove group member
   const removeMember = (id) => {
-    setMembers((current) => current.filter((student) => student.id !== id));
+    setMembers((current) =>
+      current.filter(
+        (student) => String(student.id) !== String(id)
+      )
+    );
   };
 
+  // Submit project
   const submit = async (e) => {
     e.preventDefault();
     setError("");
+
+    if (!school || !dept || !course) {
+      fail("Please select your school, department and course.");
+      return;
+    }
+
+    if (!title.trim() || !desc.trim()) {
+      fail("Please enter the project title and description.");
+      return;
+    }
 
     if (picked.length === 0) {
       fail("Please select at least one technology.");
@@ -289,19 +356,25 @@ export default function Submit() {
       return;
     }
 
-    if (documentFile && documentFile.size > MAX_DOC_MB * 1024 * 1024) {
+    if (
+      documentFile &&
+      documentFile.size > MAX_DOC_MB * 1024 * 1024
+    ) {
       fail(`Document must be smaller than ${MAX_DOC_MB}MB.`);
       return;
     }
 
     const payload = {
-      title,
-      description: desc,
+      title: title.trim(),
+      description: desc.trim(),
       year: Number(year),
       course: Number(course),
       technologies: picked,
       submission_type: type,
-      members: type === "group" ? members.map((m) => m.id) : [],
+      members:
+        type === "group"
+          ? members.map((member) => member.id)
+          : [],
       supervisors: pickedSupervisors,
       repo_url: repoUrl,
       demo_url: demoUrl,
@@ -312,11 +385,20 @@ export default function Submit() {
     setStage("compress");
 
     try {
-      const headers = { Authorization: `Token ${token()}` };
+      const headers = {
+        Authorization: `Token ${token()}`,
+      };
+
       let body;
 
-      const smallCover = cover ? await compressImage(cover) : null;
-      const hasFiles = smallCover || documentFile || attachments.length > 0;
+      const smallCover = cover
+        ? await compressImage(cover)
+        : null;
+
+      const hasFiles =
+        smallCover ||
+        documentFile ||
+        attachments.length > 0;
 
       setStage("upload");
 
@@ -325,16 +407,25 @@ export default function Submit() {
 
         Object.entries(payload).forEach(([key, value]) => {
           if (Array.isArray(value)) {
-            value.forEach((item) => body.append(key, item));
+            value.forEach((item) => {
+              body.append(key, item);
+            });
           } else {
             body.append(key, value);
           }
         });
 
-        if (smallCover) body.append("cover", smallCover);
-        if (documentFile) body.append("document", documentFile);
-        attachments.forEach((file) => body.append("attachments", file));
-        // USIWEKE Content-Type hapa, browser inaweka yenyewe
+        if (smallCover) {
+          body.append("cover", smallCover);
+        }
+
+        if (documentFile) {
+          body.append("document", documentFile);
+        }
+
+        attachments.forEach((file) => {
+          body.append("attachments", file);
+        });
       } else {
         headers["Content-Type"] = "application/json";
         body = JSON.stringify(payload);
@@ -344,13 +435,18 @@ export default function Submit() {
         `${API}/projects/`,
         headers,
         body,
-        (p) => {
-          setProgress(p);
-          if (p >= 100) setStage("save");
+        (percent) => {
+          setProgress(percent);
+
+          if (percent >= 100) {
+            setStage("save");
+          }
         }
       );
 
-      if (!ok) throw new Error(getError(data, status));
+      if (!ok) {
+        throw new Error(getError(data, status));
+      }
 
       setSubmittedTitle(data.title || title);
       setDone(true);
@@ -362,23 +458,35 @@ export default function Submit() {
     }
   };
 
+  // Success screen
   if (done) {
     return (
       <div className="page">
         <div className="success card">
           <div className="check">✔</div>
+
           <h2>Project submitted</h2>
+
           <p className="muted">
             Your project has been saved successfully.
             Your two supervisors have been notified.
           </p>
+
           <p>
             <b>{submittedTitle}</b>
           </p>
-          <span className="badge orange">Pending Review</span>
+
+          <span className="badge orange">
+            Pending Review
+          </span>
+
           <br />
           <br />
-          <button className="btn" onClick={() => window.location.reload()}>
+
+          <button
+            className="btn"
+            onClick={() => window.location.reload()}
+          >
             Submit another
           </button>
         </div>
@@ -390,25 +498,40 @@ export default function Submit() {
     <div className="page">
       <div className="welcome">
         <h1>Submit Project</h1>
+
         <p className="muted">
           Fill in the details once. Supervisors are alerted on submit.
         </p>
       </div>
 
       <form className="card form" onSubmit={submit}>
-        {error && <div className="hint">{error}</div>}
-
-        {initialLoading && (
-          <p className="muted">Loading university information...</p>
+        {error && (
+          <div className="hint">
+            {error}
+          </div>
         )}
 
+        {initialLoading && (
+          <p className="muted">
+            Loading university information...
+          </p>
+        )}
+
+        {/* Submission type */}
         <div className="seg">
           {["individual", "group"].map((item) => (
             <button
               type="button"
               key={item}
-              className={type === item ? "seg-btn active" : "seg-btn"}
-              onClick={() => setType(item)}
+              className={
+                type === item
+                  ? "seg-btn active"
+                  : "seg-btn"
+              }
+              onClick={() => {
+                setType(item);
+                setError("");
+              }}
             >
               {item === "individual" ? "Individual" : "Group"}
             </button>
@@ -422,8 +545,10 @@ export default function Submit() {
           </p>
         )}
 
+        {/* School */}
         <label>
           School
+
           <select
             value={school}
             onChange={(e) => {
@@ -434,6 +559,7 @@ export default function Submit() {
             required
           >
             <option value="">Select school</option>
+
             {schools.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name}
@@ -442,9 +568,11 @@ export default function Submit() {
           </select>
         </label>
 
+        {/* Department and course */}
         <div className="row">
           <label>
             Department
+
             <select
               value={dept}
               onChange={(e) => {
@@ -455,6 +583,7 @@ export default function Submit() {
               required
             >
               <option value="">Select department</option>
+
               {departments.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name}
@@ -465,6 +594,7 @@ export default function Submit() {
 
           <label>
             Course
+
             <select
               value={course}
               onChange={(e) => setCourse(e.target.value)}
@@ -472,6 +602,7 @@ export default function Submit() {
               required
             >
               <option value="">Select course</option>
+
               {courses.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name}
@@ -481,8 +612,10 @@ export default function Submit() {
           </label>
         </div>
 
+        {/* Year */}
         <label>
           Project year
+
           <input
             type="number"
             min="2000"
@@ -493,8 +626,10 @@ export default function Submit() {
           />
         </label>
 
+        {/* Title */}
         <label>
           Project title
+
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -503,8 +638,10 @@ export default function Submit() {
           />
         </label>
 
+        {/* Description */}
         <label>
           Description
+
           <textarea
             rows="4"
             value={desc}
@@ -514,14 +651,22 @@ export default function Submit() {
           />
         </label>
 
+        {/* Technologies */}
         <div>
-          <span className="label">Technologies used</span>
+          <span className="label">
+            Technologies used
+          </span>
+
           <div className="tech-pick">
             {technologies.map((item) => (
               <button
                 type="button"
                 key={item.id}
-                className={picked.includes(item.id) ? "pick on" : "pick"}
+                className={
+                  picked.includes(item.id)
+                    ? "pick on"
+                    : "pick"
+                }
                 onClick={() => toggleTechnology(item.id)}
               >
                 {item.name}
@@ -530,21 +675,29 @@ export default function Submit() {
           </div>
         </div>
 
+        {/* Supervisors */}
         <div>
-          <span className="label">Select exactly two supervisors</span>
+          <span className="label">
+            Select exactly two supervisors
+          </span>
 
           <div className="tech-pick">
             {supervisors.map((item) => {
               const name =
                 item.full_name ||
-                `${item.first_name || ""} ${item.last_name || ""}`.trim();
+                `${item.first_name || ""} ${
+                  item.last_name || ""
+                }`.trim() ||
+                item.username;
 
               return (
                 <button
                   type="button"
                   key={item.id}
                   className={
-                    pickedSupervisors.includes(item.id) ? "pick on" : "pick"
+                    pickedSupervisors.includes(item.id)
+                      ? "pick on"
+                      : "pick"
                   }
                   onClick={() => toggleSupervisor(item.id)}
                 >
@@ -559,50 +712,159 @@ export default function Submit() {
           </small>
         </div>
 
+        {/* GROUP MEMBERS */}
         {type === "group" && (
-          <div>
+          <div
+            style={{
+              marginTop: "15px",
+              padding: "15px",
+              border: "1px solid #dce5ec",
+              borderRadius: "12px",
+            }}
+          >
+            <h3 style={{ marginTop: 0 }}>
+              Group Members
+            </h3>
+
+            <p className="muted">
+              Search for registered students and add them to your project.
+            </p>
+
             <label>
-              Search registered group members
+              Search registered students
+
               <input
+                type="search"
                 value={studentSearch}
                 onChange={(e) => setStudentSearch(e.target.value)}
-                placeholder="Search by name or registration number"
+                placeholder="Name or registration number"
               />
             </label>
 
-            {studentResults.map((student) => (
-              <div className="card" key={student.id}>
-                <strong>{student.full_name || student.username}</strong>
-                <p className="muted">{student.reg_number}</p>
-                <button
-                  type="button"
-                  className="link"
-                  onClick={() => addMember(student)}
-                >
-                  Add member
-                </button>
-              </div>
-            ))}
+            {studentSearch.trim().length >= 2 && (
+              <div style={{ marginTop: "12px" }}>
+                {studentResults.length > 0 ? (
+                  studentResults.map((student) => {
+                    const alreadyAdded = members.some(
+                      (member) =>
+                        String(member.id) === String(student.id)
+                    );
 
-            <p className="label">Selected members: {members.length}</p>
+                    return (
+                      <div
+                        className="card"
+                        key={student.id}
+                        style={{
+                          padding: "14px",
+                          marginBottom: "12px",
+                          borderRadius: "10px",
+                        }}
+                      >
+                        <strong>
+                          {student.full_name || student.username}
+                        </strong>
 
-            {members.map((student) => (
-              <div className="card" key={student.id}>
-                {student.full_name || student.username}
-                <button
-                  type="button"
-                  className="link"
-                  onClick={() => removeMember(student.id)}
-                >
-                  Remove
-                </button>
+                        <p className="muted">
+                          Registration Number:{" "}
+                          {student.reg_number || "Not available"}
+                        </p>
+
+                        <button
+                          type="button"
+                          disabled={alreadyAdded}
+                          onClick={() => addMember(student)}
+                          style={{
+                            width: "100%",
+                            padding: "13px",
+                            marginTop: "8px",
+                            border: "none",
+                            borderRadius: "8px",
+                            background: alreadyAdded
+                              ? "#777"
+                              : "#198754",
+                            color: "#fff",
+                            fontWeight: "700",
+                            fontSize: "15px",
+                            cursor: alreadyAdded
+                              ? "not-allowed"
+                              : "pointer",
+                          }}
+                        >
+                          {alreadyAdded
+                            ? "✓ Member Added"
+                            : "+ Add Member"}
+                        </button>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <p className="muted">
+                    No registered students found.
+                  </p>
+                )}
               </div>
-            ))}
+            )}
+
+            {/* Selected members */}
+            <div style={{ marginTop: "20px" }}>
+              <h4>
+                Selected Members ({members.length})
+              </h4>
+
+              {members.length === 0 ? (
+                <p className="muted">
+                  No group members added yet.
+                </p>
+              ) : (
+                members.map((student) => (
+                  <div
+                    className="card"
+                    key={student.id}
+                    style={{
+                      padding: "12px",
+                      marginBottom: "10px",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: "10px",
+                    }}
+                  >
+                    <div>
+                      <strong>
+                        {student.full_name || student.username}
+                      </strong>
+
+                      <p className="muted">
+                        {student.reg_number || ""}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => removeMember(student.id)}
+                      style={{
+                        padding: "9px 13px",
+                        border: "none",
+                        borderRadius: "7px",
+                        background: "#dc3545",
+                        color: "#fff",
+                        fontWeight: "600",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         )}
 
+        {/* Repository URL */}
         <label>
           Repository URL (optional)
+
           <input
             type="url"
             value={repoUrl}
@@ -611,8 +873,10 @@ export default function Submit() {
           />
         </label>
 
+        {/* Demo URL */}
         <label>
           Demo URL (optional)
+
           <input
             type="url"
             value={demoUrl}
@@ -621,35 +885,54 @@ export default function Submit() {
           />
         </label>
 
+        {/* Cover image */}
         <label>
           Project cover image (optional)
+
           <input
             type="file"
             accept="image/*"
-            onChange={(e) => setCover(e.target.files?.[0] || null)}
+            onChange={(e) =>
+              setCover(e.target.files?.[0] || null)
+            }
           />
         </label>
 
+        {/* Document */}
         <label>
           Project document (PDF, DOC, DOCX, max {MAX_DOC_MB}MB)
+
           <input
             type="file"
             accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            onChange={(e) => setDocumentFile(e.target.files?.[0] || null)}
+            onChange={(e) =>
+              setDocumentFile(e.target.files?.[0] || null)
+            }
           />
         </label>
 
+        {/* Attachments */}
         <label>
           Additional files (ZIP, etc.) (optional)
+
           <input
             type="file"
             multiple
-            onChange={(e) => setAttachments(Array.from(e.target.files || []))}
+            onChange={(e) =>
+              setAttachments(
+                Array.from(e.target.files || [])
+              )
+            }
           />
         </label>
 
-        {error && <div className="hint">{error}</div>}
+        {error && (
+          <div className="hint">
+            {error}
+          </div>
+        )}
 
+        {/* Submit button */}
         <button
           className="btn"
           type="submit"
@@ -658,7 +941,12 @@ export default function Submit() {
             position: "relative",
             overflow: "hidden",
             ...(loading
-              ? { background: "#5b6b7a", color: "#fff", opacity: 1, cursor: "wait" }
+              ? {
+                  background: "#5b6b7a",
+                  color: "#fff",
+                  opacity: 1,
+                  cursor: "wait",
+                }
               : {}),
           }}
         >
@@ -675,7 +963,14 @@ export default function Submit() {
               }}
             />
           )}
-          <span style={{ position: "relative", zIndex: 1, fontWeight: 700 }}>
+
+          <span
+            style={{
+              position: "relative",
+              zIndex: 1,
+              fontWeight: 700,
+            }}
+          >
             {loading
               ? stage === "save"
                 ? "Saving... 100%"
